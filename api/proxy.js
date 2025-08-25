@@ -1,102 +1,65 @@
-import axios from 'axios';
+const axios = require('axios');
 
-export default async function handler(req, res) {
-  // Handle CORS
+module.exports = async (req, res) => {
+  // Cấu hình CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Webhook-URL');
+
+  // Xử lý preflight request
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
+  // Chỉ cho phép POST request
   if (req.method !== 'POST') {
-    return res.status(405).json({
-      success: false,
-      error: 'Method not allowed'
-    });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { 
-      targetUrl, 
-      data, 
-      headers: customHeaders = {},
-      method = 'POST',
-      timeout = 10000 
-    } = req.body;
-
+    // Lấy URL đích từ header hoặc body
+    const targetUrl = req.headers['x-webhook-url'] || req.body.webhookUrl;
+    
     if (!targetUrl) {
-      return res.status(400).json({
-        success: false,
-        error: 'targetUrl is required'
-      });
+      return res.status(400).json({ error: 'Missing webhook URL' });
     }
 
-    // Validate URL
-    try {
-      new URL(targetUrl);
-    } catch (error) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid targetUrl format'
-      });
-    }
+    // Lấy data cần forward
+    const { webhookUrl, ...dataToForward } = req.body;
 
-    // Prepare headers
-    const headers = {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Webhook-Proxy/1.0',
-      ...customHeaders
-    };
-
-    // Forward request
-    const config = {
-      method: method.toUpperCase(),
-      url: targetUrl,
-      headers,
-      data: data || {},
-      timeout: parseInt(timeout),
-      validateStatus: () => true
-    };
-
-    const startTime = Date.now();
-    const response = await axios(config);
-    const duration = Date.now() - startTime;
-
-    console.log('Webhook forwarded:', {
-      targetUrl,
-      method: config.method,
-      status: response.status,
-      duration: `${duration}ms`
+    // Forward request đến webhook đích
+    const response = await axios.post(targetUrl, dataToForward, {
+      headers: {
+        'Content-Type': 'application/json',
+        // Forward các headers cần thiết
+        'User-Agent': req.headers['user-agent'] || 'Webhook-Proxy'
+      },
+      timeout: 30000 // 30 giây timeout
     });
 
-    res.status(200).json({
+    // Trả về response
+    res.status(response.status).json({
       success: true,
-      status: response.status,
       data: response.data,
-      headers: response.headers,
-      duration: `${duration}ms`,
-      target: targetUrl
+      status: response.status
     });
 
   } catch (error) {
     console.error('Proxy error:', error.message);
     
-    if (error.code === 'ECONNABORTED') {
-      return res.status(504).json({
-        success: false,
-        error: 'Request timeout'
-      });
-    }
-
     if (error.response) {
-      return res.status(200).json({
+      // Lỗi từ webhook đích
+      res.status(error.response.status).json({
         success: false,
-        status: error.response.status,
-        error: error.response.data
+        error: error.response.data,
+        status: error.response.status
+      });
+    } else {
+      // Lỗi network hoặc khác
+      res.status(500).json({
+        success: false,
+        error: error.message
       });
     }
-
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
   }
-}
+};
