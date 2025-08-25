@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Universal Webhook Tester</title>
+  <style>
+    :root { --bg:#f6f8fa; --card:#fff; --muted:#6b7280; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--bg);
+      padding: 24px;
+    }
+    .container {
+      max-width: 760px;
+      margin: auto;
+      background: var(--card);
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: 0 6px 28px rgba(0,0,0,.06);
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .hint { color: var(--muted); margin-bottom: 6px; }
+    label { display:block; font-weight: 600; margin-top: 14px; }
+    input, textarea {
+      width: 100%; padding: 12px 14px; margin-top: 6px;
+      border-radius: 10px; border: 1px solid #d1d5db; font-size: 14px;
+    }
+    textarea { min-height: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .row { display:flex; gap: 10px; }
+    .row > * { flex: 1; }
+    button {
+      margin-top: 18px; padding: 12px 18px; background: #2563eb; color: #fff;
+      border: none; border-radius: 10px; font-weight: 700; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    pre {
+      background: #f3f4f6; padding: 14px; border-radius: 10px;
+      white-space: pre-wrap; word-wrap: break-word;
+    }
+    .small { font-size: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Universal Webhook Tester</h1>
+    <div class="hint">Nhập URL Proxy (trên Vercel) và URL Webhook đích, thêm JSON rồi gửi.</div>
+
+    <label for="proxy">Webhook Proxy URL</label>
+    <input id="proxy" placeholder="https://<your-project>.vercel.app/api/webhook" value="/api/webhook" />
+
+    <label for="target">Target Webhook URL</label>
+    <input id="target" placeholder="https://webhook.site/<your-id> hoặc https://hooks.slack.com/..." />
+
+    <label for="data">JSON Data</label>
+    <textarea id="data">{ "hello": "world" }</textarea>
+
+    <div class="row">
+      <button id="sendBtn">Send</button>
+      <button id="exBtn" title="Nhập mẫu dữ liệu">Load examples</button>
+    </div>
+
+    <h3>Kết quả</h3>
+    <pre id="result">Chưa có dữ liệu...</pre>
+    <div class="small">Gợi ý: Nếu báo "Failed to fetch", hãy kiểm tra Proxy URL đúng endpoint <code>/api/webhook</code>, proxy đã deploy thành công, và target có cho phép HTTPS.</div>
+  </div>
+
+  <script>
+    function show(obj) {
+      try { return JSON.stringify(obj, null, 2); } catch (_) { return String(obj); }
+    }
+
+    document.getElementById("exBtn").onclick = () => {
+      document.getElementById("target").value = "https://webhook.site/your-id";
+      document.getElementById("data").value = JSON.stringify({ hello: "world", time: new Date().toISOString() }, null, 2);
+    };
+
+    document.getElementById("sendBtn").onclick = async () => {
+      const btn = document.getElementById("sendBtn");
+      const proxyUrl = document.getElementById("proxy").value.trim();
+      const targetUrl = document.getElementById("target").value.trim();
+      const dataText = document.getElementById("data").value.trim();
+      const resultEl = document.getElementById("result");
+
+      if (!proxyUrl || !targetUrl) {
+        alert("Vui lòng nhập Proxy URL và Target URL.");
+        return;
+      }
+
+      let payload;
+      try {
+        payload = dataText ? JSON.parse(dataText) : {};
+      } catch (e) {
+        resultEl.textContent = "Lỗi JSON không hợp lệ: " + e.message;
+        return;
+      }
+
+      btn.disabled = true;
+      resultEl.textContent = "Đang gửi...";
+
+      try {
+        const res = await fetch(proxyUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target: targetUrl, payload })
+        });
+
+        const text = await res.text();
+        const out = {
+          proxy_status: res.status,
+          proxy_ok: res.ok,
+          target_response: text
+        };
+        resultEl.textContent = show(out);
+      } catch (err) {
+        resultEl.textContent = "Lỗi: " + (err && err.message ? err.message : String(err));
+      } finally {
+        btn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

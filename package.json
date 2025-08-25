@@ -1,0 +1,9 @@
+{
+  "name": "universal-webhook-proxy",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "start": "vercel dev"
+  }
+}
