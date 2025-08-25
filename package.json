@@ -1,0 +1,13 @@
+{
+  "name": "webhook-proxy",
+  "version": "1.0.0",
+  "description": "Webhook proxy to handle CORS",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vercel": "^32.0.0"
+  }
+}
